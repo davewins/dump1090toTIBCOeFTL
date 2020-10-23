@@ -167,8 +167,8 @@ func main() {
 							"Category":    aircraftJSONResponse.Aircraft[i].Category,
 							"Squawk":      aircraftJSONResponse.Aircraft[i].Squawk,
 							//"LastSeen":    time.Now().Add(-lastSeen * time.Second),
-							"SourceID": sourceID,
-							"Region":   region,
+							"SourceID": *sourceID,
+							"Region":   *region,
 						})
 						if err != nil {
 							log.Println("publish failed: ", err)
