@@ -15,31 +15,6 @@ import (
 )
 
 func main() {
-	// create a struct of the incoming CSV
-	type sbs1message struct {
-		MessageType      string
-		TransmissionType string
-		SessionID        string
-		AircraftID       string
-		HexIdent         string
-		FlightID         string
-		DateGenerated    string
-		TimeGenerated    string
-		DateLogged       string
-		TimeLogged       string
-		Callsign         string
-		Altitude         int
-		GroundSpeed      int
-		Track            float32
-		Latitude         float32
-		Longitude        float32
-		VerticalRate     string
-		Squawk           string
-		Alert            string
-		Emergency        string
-		SPI              string
-		IsOnGround       string
-	}
 
 	//	{ "now" : 1603405039.7,
 	//  "messages" : 59125883,
