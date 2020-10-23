@@ -97,6 +97,8 @@ func main() {
 	eFTLURL := flag.String("eFTLURL", "", "The host:port of the TIBCO eFTL server. e.g. -eFTLURL https://streaming.spotfire-cloud.com:443 (Required)")
 	eFTLKey := flag.String("eFTLKey", "", "The key to authenticate against the TIBCO eFTL server. e.g. -eFTLKey bar (Required)")
 	interval := flag.Duration("interval", 5, "How many seconds between checks. Default of 5 seconds. e.g. -interval 5")
+	region := flag.String("region", "unknown region", "The Region of where you are sending your messages from e.g. -region UK")
+	sourceID := flag.String("sourceID", "unknown source", "Who is sending these messages? e.g. -region davewins")
 	flag.Parse()
 
 	//Check we have each of the command line arguments
@@ -165,8 +167,8 @@ func main() {
 							"Category":    aircraftJSONResponse.Aircraft[i].Category,
 							"Squawk":      aircraftJSONResponse.Aircraft[i].Squawk,
 							//"LastSeen":    time.Now().Add(-lastSeen * time.Second),
-							"SourceID": "davewins",
-							"Region":   "U.K.",
+							"SourceID": sourceID,
+							"Region":   region,
 						})
 						if err != nil {
 							log.Println("publish failed: ", err)
