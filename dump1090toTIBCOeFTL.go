@@ -1,20 +1,17 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
-	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
 	"os"
-	"strconv"
-	"strings"
 	"time"
+
+	"tibco.com/eftl"
 )
 
 func main() {
@@ -44,104 +41,140 @@ func main() {
 		IsOnGround       string
 	}
 
-	type streamingMessage struct {
-		//Format of the message for Spotfire Streaming
-		//{"ICAO":"string","FlightId":"string","Altitude":"int","Latitude":"double","Longitude":"double","Heading":"double","Speed":"int","LastReceiveTime":"timestamp","StartReceiveTime":"timestamp","Region":"string","SourceID":"string"},"key":["CQSInternalID"]}}
-		ICAO             string
-		FlightId         string
-		Altitude         int64
-		Latitude         float64
-		Longitude        float64
-		Heading          float64
-		Speed            int64
-		LastReceiveTime  int64
-		StartReceiveTime int64
-		Region           string
-		SourceID         string
+	//	{ "now" : 1603405039.7,
+	//  "messages" : 59125883,
+	//  "aircraft" : [
+	//	{"hex":"40055f","flight":"AWC2B   ","alt_baro":32475,"alt_geom":32350,"gs":437.7,"ias":268,"tas":434,"mach":0.752,"track":124.7,"track_rate":-0.03,"roll":-0.9,"mag_heading":130.6,"baro_rate":-1024,"geom_rate":-992,"squawk":"6316","emergency":"none","category":"A3","nav_altitude_mcp":20000,"nav_heading":130.8,"lat":52.883469,"lon":-1.991577,"nic":8,"rc":186,"seen_pos":0.3,"version":2,"nic_baro":1,"nac_p":10,"nac_v":2,"sil":3,"sil_type":"perhour","gva":2,"sda":2,"mlat":[],"tisb":[],"messages":2582,"seen":0.2,"rssi":-29.3}
+	//]
+	//}
+	//check out dump1090-fa websites/forums to find out more about these fields!
+	type aircraft struct {
+		Hex            string  `json:"hex"`
+		Flight         string  `json:"flight"`
+		Altbaro        int64   `json:"alt_baro"`
+		Altgeom        int64   `json:"alt_geom"`
+		Gs             float64 `json:"gs"`
+		Ias            int     `json:"ias"`
+		Tas            int     `json:"tas"`
+		Mach           float64 `json:"mach"`
+		Track          float64 `json:"track"`
+		Trackrate      float64 `json:"track_rate"`
+		Roll           float64 `json:"roll"`
+		Magheading     float64 `json:"mag_heading"`
+		Barorate       int64   `json:"baro_rate"`
+		Geomrate       int64   `json:"geom_rate"`
+		Squawk         string  `json:"squawk"`
+		Emergency      string  `json:"emergency"`
+		Category       string  `json:"category"`
+		Navaltitudemcp int64   `json:"nav_altitude"`
+		Navheading     float64 `json:"nav_heading"`
+		Lat            float64 `json:"lat"`
+		Lon            float64 `json:"lon"`
+		Nic            int     `json:"nic"`
+		Seenpos        float64 `json:"seen_pos"`
+		Navqnh         float64 `json:"nav_qnh"`
+		Version        int     `json:"version"`
+		Siltype        string  `json:"sil_type"`
+		Messages       int64   `json:"messages"`
+		Rssi           float64 `json:"rssi"`
+		Seen           float64 `json:"seen"`
+		Nicbaro        int     `json:"nic_baro"`
+		Nacp           int     `json:"nac_p"`
+		Nacv           int     `json:"nac_v"`
+		Gva            int     `json:"gva"`
+		Sda            int     `json:"sda"`
+		Sil            int     `json:"sil"`
+		NavAltitudeFMS int64   `json:"nav_altitude_fms"`
 	}
 
-	dump1090URL := flag.String("dump1090URL", "", "The host:port URL of dump1090. e.g: -dump1090URL localhost:30003 (Required)")
-	streamingHostURL := flag.String("streamingHostURL", "", "The host:port of the TIBCO Streaming server. e.g. -streamingHostURL https://streaming.spotfire-cloud.com:443 (Required)")
-	streamingHostUsername := flag.String("streamingHostUsername", "", "The username you wish to authenticate against the TIBCO Streaming server. e.g. -streamingHostUsername foo (Required)")
-	streamingHostPassword := flag.String("streamingHostPassword", "", "The password of the user to authenticate against the TIBCO Streaming server. e.g. -streamingHostPassword bar (Required)")
+	type aircraftJSON struct {
+		Now      float64    `json:"now"`
+		Messages int64      `json:"messages"`
+		Aircraft []aircraft `json:"aircraft"`
+	}
+
+	dump1090URL := flag.String("dump1090URL", "", "The URL of dump1090. e.g: -dump1090URL http://localhost:8080 (Required)")
+	eFTLURL := flag.String("eFTLURL", "", "The host:port of the TIBCO eFTL server. e.g. -eFTLURL https://streaming.spotfire-cloud.com:443 (Required)")
+	eFTLKey := flag.String("eFTLKey", "", "The key to authenticate against the TIBCO eFTL server. e.g. -eFTLKey bar (Required)")
+	interval := flag.Duration("interval", 5, "How many seconds between checks. Default of 5 seconds. e.g. -interval 5")
 	flag.Parse()
 
 	//Check we have each of the command line arguments
-	if *dump1090URL == "" || *streamingHostURL == "" || *streamingHostUsername == "" || *streamingHostPassword == "" {
+	if *dump1090URL == "" || *eFTLURL == "" || *eFTLKey == "" {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
 
-	// initialize http client
-	client := &http.Client{}
-	c, err := net.Dial("tcp", *dump1090URL)
-	if err != nil {
-		fmt.Println(err)
-		return
+	opts := &eftl.Options{
+		Password: *eFTLKey,
+		ClientID: "FlightTracker",
 	}
 
+	errChan := make(chan error, 1)
+
+	conn, err := eftl.Connect(*eFTLURL, opts, errChan)
+	if err != nil {
+		fmt.Println("TIBCO Cloud Messaging connect failed: ", err)
+	} else {
+		fmt.Println("Connected to : ", *eFTLURL)
+	}
+
+	// Disconnect from TIBCO Cloud Messaging when done
+	defer conn.Disconnect()
+
+	intervalinSeconds := *interval * time.Second
+	var aircraftJSONResponse aircraftJSON
+	aircraftURL := *dump1090URL + "/data/aircraft.json"
 	for {
-		//Listen for TCP messages
-		//message, _ := bufio.NewReader(c).ReadString('\n')
-		message, _, _ := bufio.NewReader(c).ReadLine()
-		if len(message) > 2 {
-			//fmt.Print("->: " + string(message))
-			r := csv.NewReader(strings.NewReader(string(message)))
+		response, err := http.Get(aircraftURL)
+		if err != nil {
+			fmt.Printf("The HTTP request failed with error %s\n", err)
+		} else {
+			data, _ := ioutil.ReadAll(response.Body)
+			decoder := json.NewDecoder(bytes.NewBuffer(data))
 
-			records, err1 := r.ReadAll()
-			if err1 != nil {
-				log.Fatal(err)
-			}
-			fmt.Println(records)
-			//fmt.Println("CSV Field Count: ", len(records[0]), "last value = ", records[0][len(records[0])-1])
-			//expand the slice to all 22 entries if not all fields received
-			for i := len(records[0]); i < 22; i++ {
-				records[0] = append(records[0], "")
-			}
-			//fmt.Println("New CSV Field Count: ", len(records[0]), "last value = ", records[0][len(records[0])-1])
-			ICAO := records[0][4]
-			//Sometimes the TCP read doesn't read the full record properly, so check to see if the ICAO code is exaclty 6 chars in length
-			if len(ICAO) == 6 {
-
-				altitude, _ := strconv.ParseInt(records[0][11], 0, 64)
-				latitude, _ := strconv.ParseFloat(records[0][14], 64)
-				longitude, _ := strconv.ParseFloat(records[0][15], 64)
-				heading, _ := strconv.ParseFloat(records[0][13], 64)
-				speed, _ := strconv.ParseInt(records[0][12], 0, 64)
-
-				var streamingMessages = []streamingMessage{
-					streamingMessage{
-						ICAO:             records[0][4],
-						FlightId:         records[0][10],
-						Altitude:         altitude,
-						Latitude:         latitude,
-						Longitude:        longitude,
-						Heading:          heading,
-						Speed:            speed,
-						LastReceiveTime:  time.Now().UnixNano() / 1000000,
-						StartReceiveTime: time.Now().UnixNano() / 1000000,
-						Region:           "Gloucestershire, United Kingdom",
-						SourceID:         "davewinstone"}}
-
-				// use MarshalIndent to reformat slice array as JSON
-				sbMessage, _ := json.Marshal(streamingMessages)
-				// print the reformatted struct as JSON
-				fmt.Printf("%s\n", sbMessage)
-
-				// Publish message to TIBCO Streaming
-				req, err := http.NewRequest(http.MethodPut, *streamingHostURL, bytes.NewBuffer(sbMessage))
-				req.SetBasicAuth(*streamingHostUsername, *streamingHostPassword)
-				// set the request header Content-Type for json
-				req.Header.Set("Content-Type", "application/json; charset=utf-8")
-				req.Header.Set("Accept", "application/json")
-				resp, err := client.Do(req)
-				if err != nil {
-					panic(err)
+			if err := decoder.Decode(&aircraftJSONResponse); err != nil {
+				if terr, ok := err.(*json.UnmarshalTypeError); ok {
+					fmt.Printf("Failed to unmarshal field %s \n", terr.Field)
+				} else {
+					fmt.Println(err)
 				}
-				defer resp.Body.Close()
-				bodyBytes, err := ioutil.ReadAll(resp.Body)
-				fmt.Println("TIBCO Streaming Response:", resp.StatusCode, ":", string(bodyBytes))
+			} else {
+				//fmt.Println("Time Now: ", aircraftJSONResponse.Now)
+				//fmt.Println("Messages: ", aircraftJSONResponse.Messages)
+				//fmt.Println("Number of Aircraft: ", len(aircraftJSONResponse.Aircraft))
+				for i := range aircraftJSONResponse.Aircraft {
+					fmt.Println("Aircraft: ", aircraftJSONResponse.Aircraft[i].Hex)
+					lastSeen := time.Duration(aircraftJSONResponse.Aircraft[i].Seen) * time.Second
+
+					//if lat/lon is not set or = 0,0 then we're not interested - it can happen, but unlikely I'll receive a signal from there!
+					//OR if lastSeen is more than 60 seconds
+					if (aircraftJSONResponse.Aircraft[i].Lat != 0 && aircraftJSONResponse.Aircraft[i].Lon != 0) || lastSeen <= 60 {
+						//fmt.Print("Raw Seen: ", aircraftJSONResponse.Aircraft[i].Seen, ": ")
+						//fmt.Println("Last Seen: ", lastSeen)
+						//Aircraft Category‘A1’ : ‘light’,‘A2’ : ‘medium’,‘A3’ : ‘medium’,‘A5’ : ‘heavy’,‘A7’ : ‘rotorcraft’
+						err := conn.Publish(eftl.Message{
+							"_dest":       "flightdata",
+							"CurrentTime": aircraftJSONResponse.Now,
+							"ICAO":        aircraftJSONResponse.Aircraft[i].Hex,
+							"Flight":      aircraftJSONResponse.Aircraft[i].Flight,
+							"Lattitude":   aircraftJSONResponse.Aircraft[i].Lat,
+							"Longitude":   aircraftJSONResponse.Aircraft[i].Lon,
+							"Speed":       aircraftJSONResponse.Aircraft[i].Gs,
+							"Track":       aircraftJSONResponse.Aircraft[i].Track,
+							"Category":    aircraftJSONResponse.Aircraft[i].Category,
+							"Squawk":      aircraftJSONResponse.Aircraft[i].Squawk,
+							//"LastSeen":    time.Now().Add(-lastSeen * time.Second),
+							"SourceID": "davewins",
+							"Region":   "U.K.",
+						})
+						if err != nil {
+							log.Println("publish failed: ", err)
+						}
+					}
+				}
 			}
 		}
+		time.Sleep(intervalinSeconds)
 	}
 }
