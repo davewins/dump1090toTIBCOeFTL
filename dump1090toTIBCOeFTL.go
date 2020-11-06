@@ -69,11 +69,11 @@ func main() {
 	}
 
 	dump1090URL := flag.String("dump1090URL", "", "The URL of dump1090. e.g: -dump1090URL http://localhost:8080 (Required)")
-	eFTLURL := flag.String("eFTLURL", "", "The host:port of the TIBCO eFTL server. e.g. -eFTLURL https://streaming.spotfire-cloud.com:443 (Required)")
-	eFTLKey := flag.String("eFTLKey", "", "The key to authenticate against the TIBCO eFTL server. e.g. -eFTLKey bar (Required)")
+	eFTLURL := flag.String("eFTLURL", "", "The host:port of the TIBCO eFTL server. e.g. -eFTLURL https://[host]:[port] (Required)")
+	eFTLKey := flag.String("eFTLKey", "", "The key to authenticate against the TIBCO eFTL server. e.g. -eFTLKey 53454545345345 (Required)")
 	interval := flag.Duration("interval", 5, "How many seconds between checks. Default of 5 seconds. e.g. -interval 5")
 	region := flag.String("region", "unknown region", "The Region of where you are sending your messages from e.g. -region UK")
-	sourceID := flag.String("sourceID", "unknown source", "Who is sending these messages? e.g. -region davewins")
+	sourceID := flag.String("sourceID", "unknown source", "Who is sending these messages? e.g. -region JohnSmith")
 	flag.Parse()
 
 	//Check we have each of the command line arguments
