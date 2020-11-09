@@ -23,7 +23,7 @@ I made both the "Spider" Antenna and a Slim Jim Antenna - in testing both were f
 
 The higher you can get your antenna, the better! To make a Slim Jim Antenna - again there are lots of resources such as: (https://jeroen.steeman.org/Antenna/Slim-Jim-Antenna-Calculator).
 
-In calculators - you need to use 1090mhz as the frequency. I can get pretty decent range. The graph below is a customised version of the dump1090-fa application (as described in the flightaware blog), that shows the maximum range that I have received ADS-B signals. I live ~10 miles away from a local airport, so I get lots of private plane transmissions, helicopters etc.
+In calculators - you need to use 1090mhz as the frequency. I can get pretty decent range. The screenshot shown is a customised version of the dump1090-fa application (as described in the flightaware blog), that shows the maximum range that I have received ADS-B signals. I live ~10 miles away from a local airport, so I get lots of private plane transmissions, helicopters etc.
 
 I can also receive transmissions from aircraft at 40,000 feet from upto 150 miles away fairly regularly. I also live relatively close (~30 miles) to a couple of RAF bases and the main flight path for a number of RAF and USAF planes is right above my house, which I never realised until I set this up! Every now and then, I have seen aircraft from 250 miles - but that's rare.
 
@@ -62,4 +62,10 @@ Once you are logged into TIBCO Cloud Data Streams (https://cloud.tibco.com), you
 
 ![](CloudDataStreams.png)
 
-The wizard is really straightforward, and if you use the "Assist Me" wizard it will look at the messages being sent to TIBCO Cloud Messaging and automatically detects the schema. Once you've configured the data stream and start the stream, it's available to TIBCO Spotfire Streaming for you to build any visualisation you like!
+The wizard is really straightforward, and if you use the "Assist Me" wizard it will look at the messages being sent to TIBCO Cloud Messaging and automatically detects the schema. 
+
+![](DataStreamsWizard.png)
+
+Once you've configured the data stream and start the stream, it's available to TIBCO Spotfire Streaming for you to build any visualisation you like!
+
+![](RealtimeFlights.png)
